@@ -1,0 +1,57 @@
+{
+  "description": "Explicit planned models and native worker lifecycle.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'scripts','hook.cjs'))\"",
+            "timeout": 5,
+            "statusMessage": "Native Agent Orchestrator: UserPromptSubmit",
+            "additionalContextLimit": 8000
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'scripts','hook.cjs'))\"",
+            "timeout": 5,
+            "statusMessage": "Native Agent Orchestrator: SubagentStart",
+            "additionalContextLimit": 1000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^(Agent|spawn_agent|multi_agent_v1[.]spawn_agent|multi_agent_v1__spawn_agent)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'scripts','hook.cjs'))\"",
+            "timeout": 5,
+            "statusMessage": "Native Agent Orchestrator: PreToolUse"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(Agent|spawn_agent|close_agent|multi_agent_v1[.](spawn_agent|close_agent)|multi_agent_v1__(spawn_agent|close_agent))$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'scripts','hook.cjs'))\"",
+            "timeout": 5,
+            "statusMessage": "Native Agent Orchestrator: PostToolUse"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+node_modules/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.log
+*.jsonl
+.env
+.env.*
+auth.json
+settings.local.json
+*settings.before*
+*hooks.before*
+.codex/orchestration-inputs/
+coverage/
+*.zip
+.DS_Store

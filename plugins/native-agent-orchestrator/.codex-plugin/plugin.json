@@ -1,0 +1,18 @@
+{
+  "name": "native-agent-orchestrator",
+  "version": "0.1.0",
+  "description": "Context-aware native agents with explicit per-step models and verified results.",
+  "author": {
+    "name": "kiki03st"
+  },
+  "repository": "https://github.com/kiki03st/native-agent-orchestrator",
+  "interface": {
+    "displayName": "Native Agent Orchestrator",
+    "shortDescription": "Plan, route models, and verify native agent work.",
+    "longDescription": "Answer simple questions directly. Plan substantial work, select each worker model explicitly, and verify results with a persistent local ledger.",
+    "developerName": "kiki03st",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": ["Plan this task, choose a model for each step, and execute."]
+  }
+}

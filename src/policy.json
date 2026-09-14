@@ -1,0 +1,17 @@
+{
+  "checked_on": "2026-09-14",
+  "max_parallel": 3,
+  "max_attempts": 2,
+  "claude_models": {
+    "haiku": ["default"],
+    "sonnet": ["medium", "high"],
+    "opus": ["high", "xhigh"],
+    "fable": ["high"]
+  },
+  "models": {
+    "gpt-5.6-luna": ["low", "medium", "high", "xhigh", "max"],
+    "gpt-5.6-terra": ["low", "medium", "high", "xhigh", "max"],
+    "gpt-5.6-sol": ["low", "medium", "high", "xhigh", "max"],
+    "gpt-6-astra": ["low", "medium", "high", "xhigh", "max"]
+  }
+}

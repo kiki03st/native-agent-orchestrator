@@ -1,0 +1,8 @@
+{
+  "name": "native-agent-orchestrator",
+  "version": "0.1.0",
+  "description": "Plan substantive tasks, select native worker models explicitly, and verify results with a local ledger.",
+  "author": { "name": "kiki03st" },
+  "repository": "https://github.com/kiki03st/native-agent-orchestrator",
+  "keywords": ["orchestration", "agents", "model-routing", "hooks"]
+}

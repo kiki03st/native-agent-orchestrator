@@ -1,0 +1,11 @@
+{
+  "name": "native-agent-orchestrator-marketplace",
+  "owner": { "name": "kiki03st" },
+  "metadata": { "description": "Native per-step model orchestration for Claude Code, with a companion Codex plugin." },
+  "plugins": [{
+    "name": "native-agent-orchestrator",
+    "source": "./claude-plugins/native-agent-orchestrator",
+    "description": "Context-aware native agent orchestration with explicit per-step models.",
+    "version": "0.1.0"
+  }]
+}
