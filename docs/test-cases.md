@@ -23,9 +23,9 @@
 | I01 | 실제 설치본과 빌드 결과 비교, 설치 matcher로 합성 2단계 실행 | 파일 일치, Codex·Claude 체인 정상 | 비공개 로컬 설치 검증 스크립트 | 통과, 합성 검증 |
 | I02 | Codex 두 사용자 범위 및 Claude 설정 검사 | Codex 각 4개 그룹, Claude 플러그인 활성·기존 수동 훅 0개 | 설정 읽기 검사 | 통과, 로딩·신뢰 증명은 아님 |
 | P01 | Linux에서 permissive umask로 DB 생성 | 디렉터리·DB·WAL 사용자 전용 권한 | permissions, WSL Ubuntu 24.04 | 통과 |
-| L01 | 실제 Codex native 호출 → 자동 예약·바인딩 | 수동 기록 없이 call/agent가 SQLite에 생성 | 이전 실제 probe의 ledger 재확인 | 차단: 자동 기록 없음 |
-| L02 | 실제 Codex 모델 확인 → 부모 검증 → B 실행 | 요청 모델과 별도의 실제 모델 근거, 자동 연결된 A 이후 B | L01 선행 조건 | 실행 불가: L01 및 모델 근거 미충족 |
-| L03 | 실제 Claude Agent A → B | profile 로딩, 자동 예약·바인딩, 실제 모델·완료 근거, B 실행 | Claude 네이티브 도구가 있는 새 세션 필요 | 실행 불가: 현재 세션에 해당 도구 없음 |
+| L01 | 실제 Codex native 호출 → 자동 예약·바인딩 | 수동 기록 없이 call/agent가 SQLite에 생성 | disabled/modified 훅 복구 후 실제 probe | 설정은 enabled/trusted 통과; 기존 부모 세션은 자동 기록 없어 재개 후 재검증 필요 |
+| L02 | 실제 Codex 모델 확인 → 부모 검증 → B 실행 | 요청 모델과 별도의 실제 모델 근거, 자동 연결된 A 이후 B | native thread/list + 해당 rollout turn_context와 task_complete | 실제 gpt-5.6-sol/high 및 완료 확인 통과; B는 L01 때문에 보류 |
+| L03 | 실제 Claude Agent A → B | profile 로딩, 자동 예약·바인딩, 실제 모델·완료 근거, B 실행 | Claude 네이티브 도구가 있는 새 세션 필요 | 사용자 요청으로 보류 |
 
 ## 실행 결과
 
@@ -43,4 +43,4 @@
 4. 요청 인자가 아닌 native 실행 메타데이터에서 모델을 확인하고, 완료 알림과 부모의 파일 대조 결과를 기록한다. idle·interrupt를 완료로 바꾸지 않는다.
 5. A가 부모 검증과 호스트별 완료 조건을 모두 만족한 뒤에만 B를 실행한다. A/B의 실제 identity, call ID, 모델·완료 근거를 비공개 증거로 보관한다.
 
-현재 자동 테스트는 모두 통과했지만 L01–L03은 실사용 승인 기준을 충족하지 않았다. 외부 CLI/API 작업자로 대체하거나 합성 이벤트를 실사용 성공으로 보고하지 않았다.
+현재 자동 테스트는 모두 통과했다. Codex의 훅 설정과 실제 실행 모델 확인은 추가 검증했으나 L01의 자동 기록과 L02의 후속 실행은 미완료이며, L03은 사용자 요청으로 보류했다. 외부 CLI/API 작업자로 대체하거나 합성 이벤트를 실사용 성공으로 보고하지 않았다.
