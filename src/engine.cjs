@@ -54,6 +54,9 @@ function validatePlan(plan, session) {
   const contract=plan.codex_contract===undefined?'legacy':plan.codex_contract;
   need(['legacy','collaboration'].includes(contract),'Unsupported Codex contract');
   need(runtime==='codex'||plan.codex_contract===undefined,'Codex contract requires Codex runtime');
+  const transport=plan.codex_message_transport??'plaintext';
+  need(['plaintext','encrypted'].includes(transport),'Unsupported Codex message transport');
+  need(plan.codex_message_transport===undefined||(runtime==='codex'&&contract==='collaboration'),'Message transport requires Codex collaboration');
   text(session,'session'); text(plan.objective,'objective'); text(plan.cwd,'cwd');
   need(path.isAbsolute(plan.cwd),'cwd must be absolute');
   need(fs.existsSync(plan.cwd) && fs.statSync(plan.cwd).isDirectory(),'cwd must be an existing directory');
@@ -76,7 +79,7 @@ function validatePlan(plan, session) {
     for(const id of s.depends_on){need(ids.has(id),'Unknown dependency');visit(steps.find(t=>t.id===id));}
     visiting.delete(s.id);visited.add(s.id);}
   steps.forEach(visit);
-  return {id:randomUUID(),runtime,...(runtime==='codex'?{codex_contract:contract}:{}),session,objective:plan.objective,context:String(plan.context||''),cwd:path.resolve(plan.cwd),max_parallel:parallel,steps,created_at:now(),events:[]};
+  return {id:randomUUID(),runtime,...(runtime==='codex'?{codex_contract:contract}:{}),...(plan.codex_message_transport!==undefined?{codex_message_transport:transport}:{}),session,objective:plan.objective,context:String(plan.context||''),cwd:path.resolve(plan.cwd),max_parallel:parallel,steps,created_at:now(),events:[]};
 }
 function createRun(db, plan, session) {
   const run=validatePlan(plan,session);
@@ -136,7 +139,7 @@ function parseTask(input) {
 }
 function reserve(db,input,session,callId,runtime='codex',contract='legacy') {
   text(callId,'tool call_id');
-  const {runId,stepId}=parseTask(input);
+  const {runId,stepId}=runtime==='codex'&&contract==='collaboration'?parseCodexTask(db,input):parseTask(input);
   return tx(db,()=>{
     const run=getRun(db,runId),s=stepFor(run,stepId);
     need((run.runtime||'codex')===runtime,'Dispatch runtime differs from plan');
@@ -149,8 +152,11 @@ function reserve(db,input,session,callId,runtime='codex',contract='legacy') {
       modelPair(input?.model,input?.reasoning_effort);
       need(collaboration(run)?input.fork_turns==='none':input.fork_context!==true,'Worker requires fresh context');
       need(input.model===s.model&&input.reasoning_effort===s.reasoning_effort,'Spawn model/effort differs from plan');
-      need(input.message===expected.message&&!input.items,'Spawn assignment differs from prepared arguments');
-      need(Object.keys(input).every(k=>Object.hasOwn(expected,k))&&Object.keys(expected).every(k=>input[k]===expected[k]),'Codex dispatch arguments differ from prepared arguments');
+      const encrypted=collaboration(run)&&run.codex_message_transport==='encrypted';
+      text(input.message,'Spawn message');
+      need((encrypted||input.message===expected.message)&&!input.items,'Spawn assignment differs from prepared arguments');
+      need(Object.keys(input).every(k=>Object.hasOwn(expected,k))&&Object.keys(expected).every(k=>(encrypted&&k==='message')||input[k]===expected[k]),'Codex dispatch arguments differ from prepared arguments');
+      if(encrypted)s.message_validation='encrypted-metadata-only';
     }
     need(run.session===session,'Session is not the plan owner');
     need(!listRuns(db,session).some(r=>r.events.some(v=>v.type==='reserved'&&v.call_id===callId)),'Tool call_id has already been used');
@@ -158,8 +164,19 @@ function reserve(db,input,session,callId,runtime='codex',contract='legacy') {
     s.status='dispatching';s.closed=false;s.attempts++;s.call_id=callId;s.started_at=now();
     s.execution_complete=false;s.completion_observed=null;
     if(runtime==='claude'){s.worker_type=input.subagent_type;s.stop_observed=null;}
-    return save(db,run,{type:'reserved',step:stepId,model:s.model,reasoning_effort:s.reasoning_effort,call_id:callId});
+    return save(db,run,{type:'reserved',step:stepId,model:s.model,reasoning_effort:s.reasoning_effort,call_id:callId,...(s.message_validation?{message_validation:s.message_validation}:{})});
   });
+}
+function parseCodexTask(db,input){
+  const match=/^orch_([a-f0-9]{32})_(0|[1-9][0-9]*)_([12])$/.exec(input?.task_name||'');
+  if(!match)return parseTask(input);
+  const id=match[1].replace(/^(........)(....)(....)(....)(............)$/,'$1-$2-$3-$4-$5');
+  const run=getRun(db,id);
+  if(!collaboration(run)||run.codex_message_transport!=='encrypted')return parseTask(input);
+  const step=run.steps[Number(match[2])];need(step,'Unknown encrypted dispatch step');
+  need(Number(match[3])===(step.status==='pending'?step.attempts+1:step.attempts),'Encrypted dispatch attempt differs from plan');
+  text(input.message,'Encrypted spawn message');
+  return {runId:id,stepId:step.id};
 }
 function bind(db,id,step,agentId,callId) {
   text(agentId,'agent_id');text(callId,'tool call_id');
@@ -259,4 +276,4 @@ function observeCodexCompletion(db,session,agentId,status) {
     return save(db,run,{type:'completion-observed',step:s.id,...s.completion_observed});
   });
 }
-module.exports={openDb,createRun,getRun,listRuns,prepare,parseTask,reserve,bind,report,markClosed,fail,retry,revise,observeClaudeStop,observeCodexCompletion};
+module.exports={openDb,createRun,getRun,listRuns,prepare,parseTask,parseCodexTask,reserve,bind,report,markClosed,fail,retry,revise,observeClaudeStop,observeCodexCompletion};

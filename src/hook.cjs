@@ -33,7 +33,7 @@ function handle(event){
     }
     const output=response(event.tool_response);
     if(spawn){
-      const {runId,stepId}=e.parseTask(input);
+      const {runId,stepId}=isCollaboration(event.tool_name,'spawn_agent')?e.parseCodexTask(db,input):e.parseTask(input);
       const run=e.getRun(db,runId),contract=isCollaboration(event.tool_name,'spawn_agent')?'collaboration':'legacy';
       if(run.session!==event.session_id||(run.codex_contract||'legacy')!==contract||run.runtime==='claude')throw new Error('Spawn response runtime/session/contract differs from reservation');
       const agentId=output?.agent_id||(contract==='collaboration'?output?.task_name:null);
@@ -46,8 +46,13 @@ function handle(event){
       if(!Array.isArray(output?.agents))throw new Error('Unrecognized native completion response; confirm terminal state in parent report');
       for(const agent of output.agents){
         if(!managed.some(s=>s.agent_id===agent.agent_name))continue;
-        if(['completed','errored'].includes(agent.agent_status))e.observeCodexCompletion(db,event.session_id,agent.agent_name,agent.agent_status);
-        else if(!['running','idle','pending'].includes(agent.agent_status))throw new Error('Unknown native agent status; confirm terminal state before reporting');
+        let status=agent.agent_status;
+        if(status&&typeof status==='object'&&!Array.isArray(status)&&Object.keys(status).length===1){
+          const tag=Object.keys(status)[0];
+          if(['completed','errored'].includes(tag)&&typeof status[tag]==='string')status=tag;
+        }
+        if(['completed','errored'].includes(status))e.observeCodexCompletion(db,event.session_id,agent.agent_name,status);
+        else if(!['running','idle','pending'].includes(status))throw new Error('Unknown native agent status; confirm terminal state before reporting');
       }
     }else{
       const agentId=input?.target;

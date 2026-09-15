@@ -7,8 +7,9 @@ const { spawnSync } = require('node:child_process');
 const repo = path.resolve(__dirname, '..');
 const name = 'native-agent-orchestrator';
 
-for (const scenario of ['codex', 'collaboration', 'claude']) test(`${scenario} relocated distribution preserves memory and two-step dependencies`, t => {
+for (const scenario of ['codex', 'collaboration', 'encrypted', 'claude']) test(`${scenario} relocated distribution preserves memory and two-step dependencies`, t => {
   const runtime = scenario === 'claude' ? 'claude' : 'codex';
+  const collaboration = ['collaboration', 'encrypted'].includes(scenario);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'portable plugin '));
   let db;
   t.after(() => { db?.close(); fs.rmSync(dir, { recursive: true, force: true }); });
@@ -39,7 +40,7 @@ for (const scenario of ['codex', 'collaboration', 'claude']) test(`${scenario} r
     id: 'a', task: 'Check result', model: runtime === 'codex' ? 'gpt-5.6-sol' : 'sonnet', reasoning_effort: runtime === 'codex' ? 'high' : 'medium',
     reason: 'Review', depends_on: [], read_paths: [], write_paths: [], acceptance: ['Parent verified']
   };
-  const run = e.createRun(db, { runtime, ...(scenario === 'collaboration' ? { codex_contract: scenario } : {}), objective: 'Package lifecycle', cwd: dir,
+  const run = e.createRun(db, { runtime, ...(collaboration ? { codex_contract: 'collaboration' } : {}), ...(scenario === 'encrypted' ? { codex_message_transport: 'encrypted' } : {}), objective: 'Package lifecycle', cwd: dir,
     steps: [first, { ...first, id: 'b', depends_on: ['a'] }] }, 'parent');
   const memory = require(path.join(plugin, 'scripts/memory.cjs'));
   const state = Object.fromEntries(['goals','decisions','constraints','facts','evidence','assumptions','questions','next_actions','detail_references'].map(key => [key, []]));
@@ -51,16 +52,19 @@ for (const scenario of ['codex', 'collaboration', 'claude']) test(`${scenario} r
   const assignment = input.message || input.prompt;
   assert.deepEqual(JSON.parse(assignment.split('\n').at(-1)).context_memory, { path: saved.path });
   assert.ok(!assignment.includes(state.goals[0]), 'only a relevant memory path is injected');
-  const tool = scenario === 'collaboration' ? 'collaborationspawn_agent' : runtime === 'codex' ? 'spawn_agent' : 'Agent';
-  const call = 'call-' + step, agent = scenario === 'collaboration' ? '/root/' + input.task_name : 'worker-' + step;
+  if (scenario === 'encrypted') input.message = 'Opaque native encrypted assignment';
+  const tool = collaboration ? 'collaborationspawn_agent' : runtime === 'codex' ? 'spawn_agent' : 'Agent';
+  const call = 'call-' + step, agent = collaboration ? '/root/' + input.task_name : 'worker-' + step;
   assert.deepEqual(hook({ hook_event_name: 'PreToolUse', tool_name: tool, tool_use_id: call, tool_input: input }), {});
   if (runtime === 'claude') {
     hook({ hook_event_name: 'SubagentStart', agent_id: agent, agent_type: input.subagent_type });
     hook({ hook_event_name: 'SubagentStop', agent_id: agent, agent_type: input.subagent_type, effort: { level: 'medium' } });
   } else {
     hook({ hook_event_name: 'PostToolUse', tool_name: tool, tool_use_id: call, tool_input: input,
-      tool_response: scenario === 'collaboration' ? { task_name: agent } : { agent_id: agent } });
+      tool_response: collaboration ? { task_name: agent } : { agent_id: agent } });
   }
+  if (collaboration) assert.deepEqual(hook({ hook_event_name: 'PostToolUse', tool_name: 'collaborationlist_agents', tool_input: {},
+    tool_response: { agents: [{ agent_name: agent, agent_status: { completed: 'Done' } }] } }), {});
   assert.equal(e.getRun(db, run.id).steps.find(s => s.id === step).closed, false);
   assert.throws(() => memory.write(db, run.id, 'parent', { expected_revision: saved.revision, state }), /active worker/);
   if (step === 'a') assert.throws(() => e.prepare(db, run.id, 'b'), /Dependency/);
@@ -71,7 +75,7 @@ for (const scenario of ['codex', 'collaboration', 'claude']) test(`${scenario} r
     if (step === 'a') assert.throws(() => e.prepare(db, run.id, 'b'), /Dependency/);
     hook({ hook_event_name: 'PostToolUse', tool_name: 'close_agent', tool_input: { target: agent }, tool_response: { previous_status: { completed: 'Done' } } });
   }
-  assert.equal(e.getRun(db, run.id).steps.find(s => s.id === step).closed, scenario !== 'collaboration');
+  assert.equal(e.getRun(db, run.id).steps.find(s => s.id === step).closed, !collaboration);
   }
   assert.ok(e.getRun(db, run.id).steps.every(s => s.status === 'completed'));
   const updated = memory.write(db, run.id, 'parent', { expected_revision: saved.revision, state: { ...state, next_actions: ['종료 후 갱신'] } });

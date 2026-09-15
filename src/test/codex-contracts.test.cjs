@@ -7,12 +7,12 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const e=require('../engine.cjs');
 const revision={model:'gpt-5.6-sol',reasoning_effort:'high',reason:'Retry a confirmed failure'};
-function fixture(t,contract='collaboration'){
+function fixture(t,contract='collaboration',extra={}){
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'orch-contract-'));
   const filename=path.join(dir,'state.sqlite'),db=e.openDb(filename);
   t.after(()=>{db.close();fs.rmSync(dir,{recursive:true,force:true});});
   const step=(id,depends_on=[])=>({id,task:'Read a result',model:'gpt-5.6-sol',reasoning_effort:'high',reason:'Review',depends_on,read_paths:[],write_paths:[],acceptance:['Parent checks result']});
-  const plan={objective:'Host contracts',cwd:dir,steps:[step('first'),step('second',['first'])],...(contract?{codex_contract:contract}:{})};
+  const plan={objective:'Host contracts',cwd:dir,steps:[step('first'),step('second',['first'])],...(contract?{codex_contract:contract}:{}),...extra};
   const run=e.createRun(db,plan,'parent');
   const hook=event=>{
     const result=spawnSync(process.execPath,[path.join(__dirname,'../hook.cjs')],{encoding:'utf8',input:JSON.stringify({session_id:'parent',...event}),env:{...process.env,CODEX_ORCH_DB:filename}});
@@ -69,6 +69,33 @@ test('collaboration preparation is fresh, unique, and strictly matched to the to
   assert.equal(e.getRun(db,run.id).steps[0].agent_id,identity);
 });
 
+test('encrypted collaboration explicitly validates metadata without claiming plaintext verification',t=>{
+  const {db,run,plan,hook}=fixture(t,'collaboration',{codex_message_transport:'encrypted'});
+  assert.equal(e.getRun(db,run.id).codex_message_transport,'encrypted');
+  for(const fields of [{codex_message_transport:'unknown'},{codex_contract:'legacy'},{runtime:'claude'}])
+    assert.throws(()=>e.createRun(db,{...plan,...fields},'parent'),/transport|Codex|collaboration/i);
+  const prepared=e.prepare(db,run.id,'first'),input={...prepared,message:'opaque native ciphertext'};
+  const pre=value=>hook({hook_event_name:'PreToolUse',tool_name:'collaborationspawn_agent',tool_input:value,tool_use_id:'encrypted-call'});
+  for(const fields of [{task_name:'other'},{task_name:input.task_name.replace(/_1$/,'_2')},{model:'gpt-6-astra'},{reasoning_effort:'low'},{fork_turns:'all'},{extra:true},{message:''},{message:null}])
+    assert.equal(pre({...input,...fields}).hookSpecificOutput.permissionDecision,'deny');
+  assert.equal(hook({session_id:'other',hook_event_name:'PreToolUse',tool_name:'collaborationspawn_agent',tool_input:input,tool_use_id:'wrong-session'}).hookSpecificOutput.permissionDecision,'deny');
+  assert.deepEqual(pre(input),{});
+  const step=e.getRun(db,run.id).steps[0];
+  assert.equal(step.message_validation,'encrypted-metadata-only');
+  assert.ok(!JSON.stringify(e.getRun(db,run.id)).includes(input.message));
+  const identity='/root/'+input.task_name;
+  assert.deepEqual(hook({hook_event_name:'PostToolUse',tool_name:'collaborationspawn_agent',tool_input:input,tool_use_id:'encrypted-call',tool_response:{task_name:identity}}),{});
+  assert.equal(e.getRun(db,run.id).steps[0].agent_id,identity);
+  assert.equal(pre(input).hookSpecificOutput.permissionDecision,'deny');
+  assert.throws(()=>e.prepare(db,run.id,'second'),/depend/i);
+});
+
+test('plaintext collaboration does not infer encrypted transport from an opaque message',t=>{
+  const {db,run,hook}=fixture(t),input={...e.prepare(db,run.id,'first'),message:'opaque native ciphertext'};
+  assert.equal(hook({hook_event_name:'PreToolUse',tool_name:'collaborationspawn_agent',tool_input:input,tool_use_id:'no-opt-in'}).hookSpecificOutput.permissionDecision,'deny');
+  assert.equal(e.getRun(db,run.id).steps[0].attempts,0);
+});
+
 test('completion requires native evidence and actual observed model evidence',t=>{
   const {db,run,start,report}=fixture(t);start();
   for(const fields of [{execution_complete:false},{execution_complete:'true'},{completion_status:'idle'},{completion_status:'interrupted'},{completion_status:'unknown'},{completion_evidence:''},{observed_model:undefined},{observed_model:'gpt-6-astra'},{model_evidence:''},{observed_effort:'low'},{completion_status:'errored'}])
@@ -100,6 +127,28 @@ test('an unrecognized wait response keeps reservation and asks for parent reconc
   const output=hook({hook_event_name:'PostToolUse',tool_name:'collaboration.wait_agent',tool_input:{},tool_response:'Mailbox update available'});
   assert.match(output.systemMessage,/terminal|completion/i);
   assert.equal(e.getRun(db,run.id).steps[0].execution_complete,false);
+  assert.throws(()=>e.prepare(db,run.id,'second'),/depend/i);
+});
+
+test('native tagged completion is observed without releasing execution or accepting ambiguous status',t=>{
+  const {db,run,start,hook}=fixture(t);start();
+  const observe=status=>hook({hook_event_name:'PostToolUse',tool_name:'collaborationlist_agents',tool_input:{},tool_response:{agents:[{agent_name:'worker',agent_status:status}]}});
+  for(const status of [{completed:'done',errored:'failed'},{completed:42},{interrupted:'stopped'},null]){
+    assert.match(observe(status).systemMessage,/unknown/i);
+    assert.equal(e.getRun(db,run.id).steps[0].completion_observed,null);
+  }
+  assert.deepEqual(observe({completed:'Result with evidence'}),{});
+  const step=e.getRun(db,run.id).steps[0];
+  assert.equal(step.completion_observed.status,'completed');
+  assert.equal(step.execution_complete,false);
+  assert.equal(step.closed,false);
+  assert.throws(()=>e.prepare(db,run.id,'second'),/depend/i);
+});
+
+test('native tagged error is terminal observation, not a successful result',t=>{
+  const {db,run,start,hook}=fixture(t);start();
+  assert.deepEqual(hook({hook_event_name:'PostToolUse',tool_name:'collaborationlist_agents',tool_input:{},tool_response:{agents:[{agent_name:'worker',agent_status:{errored:'Native failure'}}]}}),{});
+  assert.equal(e.getRun(db,run.id).steps[0].completion_observed.status,'errored');
   assert.throws(()=>e.prepare(db,run.id,'second'),/depend/i);
 });
 

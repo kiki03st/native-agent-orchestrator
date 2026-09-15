@@ -1,5 +1,16 @@
 # 검증 범위
 
+## Codex 실제 의존 실행 복구 완료 (2026-09-16)
+
+- 실제 훅 입력을 임시로 계측해 `collaborationlist_agents` Pre/Post 이벤트가 호스트에서 전달됨을 확인했습니다. 디스크의 수정된 matcher와 달리 활성 세션은 이전 설정을 보유했습니다. 활성 TUI의 `/hooks`에서 orchestrator 훅만 껐다 다시 켠 뒤 같은 실제 호출이 설치 핸들러에 도달했습니다. 재시작 없이 복구했으며 임시 계측과 다른 앱의 훅 변경은 모두 원복했습니다.
+- 다음 실제 spawn은 `message`의 `ORCH_TASK`가 보이지 않아 사전 훅에서 차단됐습니다. 해당 버전의 [Codex 도구 정의](https://github.com/openai/codex/blob/rust-v0.154.0/codex-rs/core/src/tools/handlers/multi_agents_spec.rs)는 message를 암호화 필드로 선언합니다. 계획에 `codex_message_transport:"encrypted"`를 명시하는 호환 경로를 추가했습니다. 생성 task 이름·시도·세션·모델·effort·fresh 인자를 검증하고, 원문 검증 대신 메타데이터만 검증했다는 사실을 원장에 기록합니다. 평문 기본값과 Claude 검증은 유지합니다.
+- 실제 `agent_status:{completed:...}` / `{errored:...}` 형태를 처리했습니다. 모호하거나 잘못된 상태는 거부하며 완료 관측만으로 의존 작업을 허용하지 않습니다.
+- **실제 fresh A → B 통과:** 자동 예약·바인딩, MD 읽기, 부모 검증 전 B 차단, 완료 관측, 부모 검증 후 B의 `MATCH`를 확인했습니다. 두 최종 작업자의 실제 Luna/medium 실행을 native thread 메타데이터와 rollout의 turn_context/task_complete로 대조했습니다. 수동 reserve/bind는 사용하지 않았으며 `execution_complete:true`, `closed:false`로 완료했습니다.
+- 첫 A 시도는 불필요한 빌드 포함 테스트 실행으로 읽기 전용 범위를 벗어나 부모가 실패 처리했습니다. 네이티브 완료 확인 후 새 identity로 재시도했고, 최종 A/B의 실제 도구 기록에서 읽기만 수행했음을 확인했습니다. 실패·재시도 이력은 원장에 남겼습니다.
+- Windows **73 통과, POSIX 1 제외**, WSL Ubuntu 24.04 **74 통과, 제외 없음**. 빌드 일치와 Codex 설치본의 파일·matcher·MD·합성 의존 체인 검사도 통과했습니다. Claude 자동 회귀 검증은 통과했으며 실사용 검증은 사용자 요청으로 계속 보류합니다.
+
+아래는 복구 전의 조사·실패 기록입니다. 현재 판정은 이 절과 [테스트 표](test-cases.md)를 따릅니다. 훅 적용 범위는 [공식 훅 문서](https://learn.chatgpt.com/docs/hooks#tool-coverage)를 참고하되, 설치 설정 조회와 실제 호출 관측을 구분해야 합니다.
+
 ## 재시작 후 Codex 검증 (2026-09-16)
 
 - 재시작한 부모 세션에서 정책 주입과 실제 fresh A 작업자의 README 제목·MD 목표 읽기를 확인했습니다. 그러나 자동 예약·바인딩은 생성되지 않았고, 원장은 pending / attempts 0으로 남았습니다. B는 실행하지 않았습니다.
