@@ -72,3 +72,27 @@ test('concurrent CLI writes allow one revision and reject the stale competitor',
   const call=()=>new Promise(resolve=>{const child=spawn(process.execPath,[cli,'memory-write',run.id,'parent','--input',input],{env});let output='';child.stdout.on('data',data=>output+=data);child.on('close',code=>resolve({code,output}));});
   const results=await Promise.all([call(),call()]);assert.deepEqual(results.map(result=>result.code).sort(),[0,1]);assert.match(results.find(result=>result.code===1).output,/stale/i);
 });
+
+test('rejected state updates preserve current Markdown and lifecycle records',t=>{
+  const {db,filename,run}=setup(t),saved=memory.write(db,run.id,'parent',{expected_revision:null,state});
+  const original=fs.readFileSync(saved.path),ledger=JSON.stringify(e.getRun(db,run.id));
+  const missing={...state};delete missing.goals;
+  for(const invalid of [missing,{...state,extra:[]},{...state,goals:['']},{...state,goals:['a\nb']},
+    {...state,goals:[null]},{...state,goals:['x'.repeat(501)]},{...state,goals:Array(21).fill('x')},
+    {...state,goals:Array(12).fill('x'.repeat(500))},{...state,detail_references:['C:\\private.md']}]){
+    assert.throws(()=>memory.write(db,run.id,'parent',{expected_revision:saved.revision,state:invalid}),/invalid|large/i);
+    assert.deepEqual(fs.readFileSync(saved.path),original);
+    assert.equal(JSON.stringify(e.getRun(db,run.id)),ledger);
+    assert.equal(memory.read(filename,run.id).revision,saved.revision);
+  }
+  const next=memory.write(db,run.id,'parent',{expected_revision:saved.revision,state:{...state,questions:[]}});
+  assert.notEqual(next.revision,saved.revision,'rejection must release SQLite transaction for the next valid write');
+});
+
+test('a resumed process reads the same memory without changing lifecycle or files',t=>{
+  const {db,filename,run}=setup(t),saved=memory.write(db,run.id,'parent',{expected_revision:null,state});
+  const original=fs.readFileSync(saved.path),ledger=JSON.stringify(e.getRun(db,run.id));
+  const child=spawnSync(process.execPath,[path.join(__dirname,'../cli.cjs'),'memory-read',run.id],{encoding:'utf8',env:{...process.env,CODEX_ORCH_DB:filename}});
+  assert.equal(child.status,0,child.stdout);assert.deepEqual(JSON.parse(child.stdout).state,state);
+  assert.deepEqual(fs.readFileSync(saved.path),original);assert.equal(JSON.stringify(e.getRun(db,run.id)),ledger);
+});

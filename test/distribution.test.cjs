@@ -7,7 +7,8 @@ const { spawnSync } = require('node:child_process');
 const repo = path.resolve(__dirname, '..');
 const name = 'native-agent-orchestrator';
 
-for (const runtime of ['codex', 'claude']) test(`${runtime} distributed hook works from a relocated path with spaces`, t => {
+for (const scenario of ['codex', 'collaboration', 'claude']) test(`${scenario} relocated distribution preserves memory and two-step dependencies`, t => {
+  const runtime = scenario === 'claude' ? 'claude' : 'codex';
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'portable plugin '));
   let db;
   t.after(() => { db?.close(); fs.rmSync(dir, { recursive: true, force: true }); });
@@ -34,22 +35,47 @@ for (const runtime of ['codex', 'claude']) test(`${runtime} distributed hook wor
   assert.equal(fs.existsSync(path.join(plugin, 'scripts/state.sqlite')), false);
   const e = require(path.join(plugin, 'scripts/engine.cjs'));
   db = e.openDb(env.CODEX_ORCH_DB);
-  const run = e.createRun(db, { runtime, objective: 'Package lifecycle', cwd: dir, steps: [{
+  const first = {
     id: 'a', task: 'Check result', model: runtime === 'codex' ? 'gpt-5.6-sol' : 'sonnet', reasoning_effort: runtime === 'codex' ? 'high' : 'medium',
     reason: 'Review', depends_on: [], read_paths: [], write_paths: [], acceptance: ['Parent verified']
-  }] }, 'parent');
-  const input = e.prepare(db, run.id, 'a');
-  assert.deepEqual(hook({ hook_event_name: 'PreToolUse', tool_name: runtime === 'codex' ? 'spawn_agent' : 'Agent', tool_use_id: 'call', tool_input: input }), {});
+  };
+  const run = e.createRun(db, { runtime, ...(scenario === 'collaboration' ? { codex_contract: scenario } : {}), objective: 'Package lifecycle', cwd: dir,
+    steps: [first, { ...first, id: 'b', depends_on: ['a'] }] }, 'parent');
+  const memory = require(path.join(plugin, 'scripts/memory.cjs'));
+  const state = Object.fromEntries(['goals','decisions','constraints','facts','evidence','assumptions','questions','next_actions','detail_references'].map(key => [key, []]));
+  state.goals = ['설치본 메모 검증'];
+  const saved = memory.write(db, run.id, 'parent', { expected_revision: null, state });
+  assert.throws(() => e.prepare(db, run.id, 'b'), /Dependency/);
+  for (const step of ['a', 'b']) {
+  const input = e.prepare(db, run.id, step);
+  const assignment = input.message || input.prompt;
+  assert.deepEqual(JSON.parse(assignment.split('\n').at(-1)).context_memory, { path: saved.path });
+  assert.ok(!assignment.includes(state.goals[0]), 'only a relevant memory path is injected');
+  const tool = scenario === 'collaboration' ? 'collaboration.spawn_agent' : runtime === 'codex' ? 'spawn_agent' : 'Agent';
+  const call = 'call-' + step, agent = scenario === 'collaboration' ? '/root/' + input.task_name : 'worker-' + step;
+  assert.deepEqual(hook({ hook_event_name: 'PreToolUse', tool_name: tool, tool_use_id: call, tool_input: input }), {});
   if (runtime === 'claude') {
-    hook({ hook_event_name: 'SubagentStart', agent_id: 'worker', agent_type: input.subagent_type });
-    hook({ hook_event_name: 'SubagentStop', agent_id: 'worker', agent_type: input.subagent_type, effort: { level: 'medium' } });
+    hook({ hook_event_name: 'SubagentStart', agent_id: agent, agent_type: input.subagent_type });
+    hook({ hook_event_name: 'SubagentStop', agent_id: agent, agent_type: input.subagent_type, effort: { level: 'medium' } });
   } else {
-    hook({ hook_event_name: 'PostToolUse', tool_name: 'spawn_agent', tool_use_id: 'call', tool_input: input, tool_response: { agent_id: 'worker' } });
+    hook({ hook_event_name: 'PostToolUse', tool_name: tool, tool_use_id: call, tool_input: input,
+      tool_response: scenario === 'collaboration' ? { task_name: agent } : { agent_id: agent } });
   }
-  assert.equal(e.getRun(db, run.id).steps[0].closed, false);
-  e.report(db, run.id, 'a', { agent_id: 'worker', call_id: 'call', summary: 'Verified', verified: true, evidence: ['Fixture checked'], changed_files: [],
-    execution_complete: true, completion_evidence: 'Native result fixture', observed_model: 'claude-sonnet-5', observed_effort: 'medium' });
-  if (runtime === 'codex') hook({ hook_event_name: 'PostToolUse', tool_name: 'close_agent', tool_input: { target: 'worker' }, tool_response: { previous_status: { completed: 'Done' } } });
-  assert.equal(e.getRun(db, run.id).steps[0].closed, true);
+  assert.equal(e.getRun(db, run.id).steps.find(s => s.id === step).closed, false);
+  assert.throws(() => memory.write(db, run.id, 'parent', { expected_revision: saved.revision, state }), /active worker/);
+  if (step === 'a') assert.throws(() => e.prepare(db, run.id, 'b'), /Dependency/);
+  e.report(db, run.id, step, { agent_id: agent, call_id: call, summary: 'Verified', verified: true, evidence: ['Fixture checked'], changed_files: [],
+    execution_complete: true, completion_status: 'completed', completion_evidence: 'Synthetic terminal fixture', model_evidence: 'Synthetic model fixture',
+    observed_model: runtime === 'codex' ? 'gpt-5.6-sol' : 'claude-sonnet-5', observed_effort: runtime === 'codex' ? 'high' : 'medium' });
+  if (scenario === 'codex') {
+    if (step === 'a') assert.throws(() => e.prepare(db, run.id, 'b'), /Dependency/);
+    hook({ hook_event_name: 'PostToolUse', tool_name: 'close_agent', tool_input: { target: agent }, tool_response: { previous_status: { completed: 'Done' } } });
+  }
+  assert.equal(e.getRun(db, run.id).steps.find(s => s.id === step).closed, scenario !== 'collaboration');
+  }
+  assert.ok(e.getRun(db, run.id).steps.every(s => s.status === 'completed'));
+  const updated = memory.write(db, run.id, 'parent', { expected_revision: saved.revision, state: { ...state, next_actions: ['종료 후 갱신'] } });
+  assert.notEqual(updated.revision, saved.revision);
+  assert.deepEqual(memory.read(env.CODEX_ORCH_DB, run.id).state.next_actions, ['종료 후 갱신']);
   assert.equal(fs.existsSync(path.join(plugin, 'scripts/state.sqlite')), false);
 });
