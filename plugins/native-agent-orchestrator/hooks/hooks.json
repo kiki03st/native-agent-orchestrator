@@ -29,7 +29,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "^(Agent|spawn_agent|multi_agent_v1[.]spawn_agent|multi_agent_v1__spawn_agent|collaboration[.]spawn_agent|collaboration__spawn_agent)$",
+        "matcher": "^(Agent|spawn_agent|multi_agent_v1[.]spawn_agent|multi_agent_v1__spawn_agent|collaboration([.]|__)?spawn_agent)$",
         "hooks": [
           {
             "type": "command",
@@ -42,7 +42,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "^(Agent|spawn_agent|close_agent|multi_agent_v1[.](spawn_agent|close_agent)|multi_agent_v1__(spawn_agent|close_agent)|collaboration[.](spawn_agent|list_agents|wait_agent)|collaboration__(spawn_agent|list_agents|wait_agent))$",
+        "matcher": "^(Agent|spawn_agent|close_agent|multi_agent_v1[.](spawn_agent|close_agent)|multi_agent_v1__(spawn_agent|close_agent)|collaboration([.]|__)?(spawn_agent|list_agents|wait_agent))$",
         "hooks": [
           {
             "type": "command",

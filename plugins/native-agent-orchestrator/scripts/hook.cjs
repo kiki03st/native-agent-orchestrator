@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs');
 const path=require('node:path');
-const isCollaboration=(name,tool)=>name==='collaboration.'+tool||name==='collaboration__'+tool;
+const isCollaboration=(name,tool)=>name==='collaboration.'+tool||name==='collaboration__'+tool||name==='collaboration'+tool;
 const isTool=(name,tool)=>name===tool||name==='multi_agent_v1__'+tool||name==='multi_agent_v1.'+tool||isCollaboration(name,tool)||(tool==='spawn_agent'&&name==='Agent');
 const worker='You are a scoped worker, NOT the orchestrator. Follow your ORCH_TASK assignment. Do not create plans or spawn child agents. Do not change orchestration settings or the plan ledger. Return a concise result with evidence, changed files and remaining issues. A worker report is not parent verification.';
 function object(value){return typeof value==='string'?JSON.parse(value):value;}

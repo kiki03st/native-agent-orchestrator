@@ -26,8 +26,8 @@ const codex = (event, matcher, limit) => ({ ...(matcher ? { matcher } : {}), hoo
 json(`plugins/${name}/hooks/hooks.json`, { description: 'Explicit planned models and native worker lifecycle.', hooks: {
   UserPromptSubmit: [codex('UserPromptSubmit', null, 10000)],
   SubagentStart: [codex('SubagentStart', null, 1000)],
-  PreToolUse: [codex('PreToolUse', '^(Agent|spawn_agent|multi_agent_v1[.]spawn_agent|multi_agent_v1__spawn_agent|collaboration[.]spawn_agent|collaboration__spawn_agent)$')],
-  PostToolUse: [codex('PostToolUse', '^(Agent|spawn_agent|close_agent|multi_agent_v1[.](spawn_agent|close_agent)|multi_agent_v1__(spawn_agent|close_agent)|collaboration[.](spawn_agent|list_agents|wait_agent)|collaboration__(spawn_agent|list_agents|wait_agent))$')]
+  PreToolUse: [codex('PreToolUse', '^(Agent|spawn_agent|multi_agent_v1[.]spawn_agent|multi_agent_v1__spawn_agent|collaboration([.]|__)?spawn_agent)$')],
+  PostToolUse: [codex('PostToolUse', '^(Agent|spawn_agent|close_agent|multi_agent_v1[.](spawn_agent|close_agent)|multi_agent_v1__(spawn_agent|close_agent)|collaboration([.]|__)?(spawn_agent|list_agents|wait_agent))$')]
 } });
 const claude = (event, matcher) => ({ ...(matcher ? { matcher } : {}), hooks: [{ type: 'command', command: 'node',
   args: ['${CLAUDE_PLUGIN_ROOT}/scripts/claude-hook.cjs'], timeout: 5, statusMessage: `Native Agent Orchestrator: ${event}` }] });

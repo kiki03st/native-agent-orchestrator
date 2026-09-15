@@ -103,6 +103,18 @@ test('an unrecognized wait response keeps reservation and asks for parent reconc
   assert.throws(()=>e.prepare(db,run.id,'second'),/depend/i);
 });
 
+test('flattened native collaboration names reserve, bind and observe completion',t=>{
+  const {db,run,hook}=fixture(t),input=e.prepare(db,run.id,'first');
+  assert.deepEqual(hook({hook_event_name:'PreToolUse',tool_name:'collaborationspawn_agent',tool_input:input,tool_use_id:'flat-call'}),{});
+  assert.equal(e.getRun(db,run.id).steps[0].status,'dispatching');
+  const identity='/root/'+input.task_name;
+  assert.deepEqual(hook({hook_event_name:'PostToolUse',tool_name:'collaborationspawn_agent',tool_input:input,tool_use_id:'flat-call',tool_response:{task_name:identity}}),{});
+  assert.equal(e.getRun(db,run.id).steps[0].agent_id,identity);
+  assert.deepEqual(hook({hook_event_name:'PostToolUse',tool_name:'collaborationlist_agents',tool_input:{},tool_response:{agents:[{agent_name:identity,agent_status:'completed'}]}}),{});
+  assert.equal(e.getRun(db,run.id).steps[0].completion_observed.status,'completed');
+  assert.equal(e.getRun(db,run.id).steps[0].closed,false);
+});
+
 test('failed collaboration execution retries fresh and stale reports/events cannot settle the retry',t=>{
   const {db,run,start,report}=fixture(t);const first=e.prepare(db,run.id,'first');start();
   e.report(db,run.id,'first',report({verified:false,completion_status:'errored'}));

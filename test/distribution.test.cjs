@@ -51,7 +51,7 @@ for (const scenario of ['codex', 'collaboration', 'claude']) test(`${scenario} r
   const assignment = input.message || input.prompt;
   assert.deepEqual(JSON.parse(assignment.split('\n').at(-1)).context_memory, { path: saved.path });
   assert.ok(!assignment.includes(state.goals[0]), 'only a relevant memory path is injected');
-  const tool = scenario === 'collaboration' ? 'collaboration.spawn_agent' : runtime === 'codex' ? 'spawn_agent' : 'Agent';
+  const tool = scenario === 'collaboration' ? 'collaborationspawn_agent' : runtime === 'codex' ? 'spawn_agent' : 'Agent';
   const call = 'call-' + step, agent = scenario === 'collaboration' ? '/root/' + input.task_name : 'worker-' + step;
   assert.deepEqual(hook({ hook_event_name: 'PreToolUse', tool_name: tool, tool_use_id: call, tool_input: input }), {});
   if (runtime === 'claude') {
