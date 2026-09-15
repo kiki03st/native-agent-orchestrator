@@ -13,5 +13,6 @@ settings.local.json
 *hooks.before*
 .codex/orchestration-inputs/
 coverage/
+memory/
 *.zip
 .DS_Store

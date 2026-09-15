@@ -21,7 +21,9 @@ try {
     case 'retry':result=e.retry(db,a,b,input());break;
     case 'revise':result=e.revise(db,a,b,input());break;
     case 'inspect-claude':result=require('./claude-adapter.cjs').inspect(db,a,b);break;
-    default:throw new Error('Commands: create, prepare, show, list, bind, report, closed, fail, retry, revise, inspect-claude');
+    case 'memory-read':result=require('./memory.cjs').read(db.orch_filename,a);break;
+    case 'memory-write':result=require('./memory.cjs').write(db,a,b,input());break;
+    default:throw new Error('Commands: create, prepare, show, list, bind, report, closed, fail, retry, revise, inspect-claude, memory-read, memory-write');
   }
   process.stdout.write(JSON.stringify(result)+'\n');
 } catch(error){process.stdout.write(JSON.stringify({error:error.message})+'\n');process.exitCode=1;}

@@ -62,6 +62,10 @@ claude plugin install native-agent-orchestrator@native-agent-orchestrator-market
 
 ## 데이터와 제한
 
+Codex는 기존 `fork_context:false` 계약과 `collaboration.spawn_agent`의 `task_name`·`fork_turns:"none"` 계약을 지원합니다. 계획에서 실제 호스트에 맞는 계약을 선택합니다. 실행 완료와 에이전트 종료를 구분하며, 실제 모델과 완료 근거가 없으면 검증 성공으로 기록하지 않습니다.
+
+부모 대화는 유지하고 실행별 로컬 `current.md`에 현재 목표·결정·제약·검증된 사실·다음 작업을 정리할 수 있습니다. 작업자는 관련 상태를 읽고 부모만 갱신합니다. 자세한 사용법과 검증 한계는 [맥락 관리와 호스트 계약](docs/context-memory.md)을 참고하세요.
+
 계획·이벤트·검증 결과는 기본적으로 사용자 홈의 `.local/share/native-agent-orchestrator/state.sqlite`에 저장됩니다. 두 호스트가 같은 파일을 사용하므로 파일 범위 충돌을 함께 확인합니다. `ORCHESTRATOR_STATE_DIR`로 공통 데이터 폴더를 지정할 수 있고, `CODEX_ORCH_DB`는 DB 파일 경로를 직접 지정하는 우선 설정입니다. 두 호스트에 같은 절대 경로를 설정하세요.
 
 플러그인 캐시 안에는 실행 기록을 쓰지 않습니다. 제거·업데이트 시 기록을 자동 삭제하지 않습니다. 플러그인 자체는 텔레메트리나 외부 API 요청을 보내지 않지만, 작업 프롬프트와 결과는 사용하는 호스트의 모델 처리 정책을 따릅니다. 계획 파일과 DB에 비밀정보를 넣지 마세요.

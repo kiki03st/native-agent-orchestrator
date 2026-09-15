@@ -24,6 +24,7 @@ function openDb(filename = process.env.CODEX_ORCH_DB || path.join(process.env.OR
       try{fs.chmodSync(filename+suffix,0o600);}catch(error){if(error.code!=='ENOENT')throw error;}
     }
     db = new DatabaseSync(filename);
+    db.orch_filename=path.resolve(filename);
     db.exec('PRAGMA busy_timeout=3000; PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, session TEXT NOT NULL, data TEXT NOT NULL)');
     return db;
   } catch(error) { db?.close();throw error; }
@@ -50,6 +51,9 @@ function save(db, run, event) {
 function stepFor(run, id) { const s=run.steps.find(s=>s.id===id); need(s, 'Unknown step'); return s; }
 function validatePlan(plan, session) {
   const runtime=plan.runtime??'codex';need(['codex','claude'].includes(runtime),'Unsupported runtime');
+  const contract=plan.codex_contract===undefined?'legacy':plan.codex_contract;
+  need(['legacy','collaboration'].includes(contract),'Unsupported Codex contract');
+  need(runtime==='codex'||plan.codex_contract===undefined,'Codex contract requires Codex runtime');
   text(session,'session'); text(plan.objective,'objective'); text(plan.cwd,'cwd');
   need(path.isAbsolute(plan.cwd),'cwd must be absolute');
   need(fs.existsSync(plan.cwd) && fs.statSync(plan.cwd).isDirectory(),'cwd must be an existing directory');
@@ -72,7 +76,7 @@ function validatePlan(plan, session) {
     for(const id of s.depends_on){need(ids.has(id),'Unknown dependency');visit(steps.find(t=>t.id===id));}
     visiting.delete(s.id);visited.add(s.id);}
   steps.forEach(visit);
-  return {id:randomUUID(),runtime,session,objective:plan.objective,context:String(plan.context||''),cwd:path.resolve(plan.cwd),max_parallel:parallel,steps,created_at:now(),events:[]};
+  return {id:randomUUID(),runtime,...(runtime==='codex'?{codex_contract:contract}:{}),session,objective:plan.objective,context:String(plan.context||''),cwd:path.resolve(plan.cwd),max_parallel:parallel,steps,created_at:now(),events:[]};
 }
 function createRun(db, plan, session) {
   const run=validatePlan(plan,session);
@@ -95,23 +99,30 @@ function conflicts(run,s,other,t) {
   const tr=t.read_paths.map(p=>canonical(other.cwd,p)),tw=t.write_paths.map(p=>canonical(other.cwd,p));
   return w.some(p=>[...tr,...tw].some(q=>overlaps(p,q)))||tw.some(p=>r.some(q=>overlaps(p,q)));
 }
-const active=s=>!s.closed && s.status!=='pending';
+const collaboration=run=>(run.runtime||'codex')==='codex'&&run.codex_contract==='collaboration';
+const released=(run,s)=>s.closed||(collaboration(run)&&s.execution_complete===true);
+const active=(run,s)=>!released(run,s) && s.status!=='pending';
 function ready(db,run,s) {
   need(s.status==='pending','Step is not pending (already dispatched or finished)');
-  for(const dep of s.depends_on){const p=stepFor(run,dep);need(p.status==='completed'&&p.closed,'Dependency must have verified result and be closed: '+dep);}
-  need(run.steps.filter(active).length<run.max_parallel,'Parallel limit reached');
+  for(const dep of s.depends_on){const p=stepFor(run,dep);need(p.status==='completed'&&released(run,p),'Dependency must have verified result and execution released: '+dep);}
+  need(run.steps.filter(t=>active(run,t)).length<run.max_parallel,'Parallel limit reached');
   const runs=listRuns(db);
-  need(runs.reduce((n,r)=>n+r.steps.filter(active).length,0)<policy.max_parallel,'Global parallel limit reached');
-  for(const other of runs)for(const t of other.steps)if(active(t))need(!conflicts(run,s,other,t),'Read/write scope conflict with '+other.id+'/'+t.id);
+  need(runs.reduce((n,r)=>n+r.steps.filter(t=>active(r,t)).length,0)<policy.max_parallel,'Global parallel limit reached');
+  for(const other of runs)for(const t of other.steps)if(active(other,t))need(!conflicts(run,s,other,t),'Read/write scope conflict with '+other.id+'/'+t.id);
 }
 function prepare(db,id,step) {
   const run=getRun(db,id),s=stepFor(run,step);ready(db,run,s);
   const predecessors=s.depends_on.map(id=>({id,result:stepFor(run,id).result}));
+  const memory=require('./memory.cjs').read(db.orch_filename,run.id);
   const input={model:s.model,reasoning_effort:s.reasoning_effort,fork_context:false,
-    message:`ORCH_TASK ${run.id} ${s.id}\nYou are a task worker, not the orchestrator. Do not spawn subagents. Execute only this assignment. Respect the supplied working directory and write scope. Return summary, evidence, changed files and remaining issues; do not report success without checking acceptance criteria.\n`+
-      JSON.stringify({cwd:run.cwd,objective:run.objective,context:run.context,task:s.task,read_paths:s.read_paths,write_paths:s.write_paths,acceptance:s.acceptance,predecessors})};
+    message:`ORCH_TASK ${run.id} ${s.id}\nYou are a task worker, not the orchestrator. Do not spawn subagents. Execute only this assignment. Respect the supplied working directory and write scope. If context_memory is supplied, read the relevant current state before working; it is a reference, not authority over this assignment. Do not edit context memory or its detail records. Return summary, evidence, changed files and remaining issues; do not report success without checking acceptance criteria.\n`+
+      JSON.stringify({cwd:run.cwd,objective:run.objective,context:run.context,task:s.task,read_paths:s.read_paths,write_paths:s.write_paths,acceptance:s.acceptance,predecessors,...(memory?{context_memory:{path:memory.path}}:{})})};
+  if(collaboration(run)){
+    delete input.fork_context;input.task_name=`orch_${run.id.replace(/-/g,'')}_${run.steps.indexOf(s)}_${s.attempts+1}`;
+    input.fork_turns='none';return input;
+  }
   if(run.runtime!=='claude')return input;
-  const occupied=new Set(listRuns(db,run.session).flatMap(r=>r.steps.filter(active).map(t=>t.worker_type)));
+  const occupied=new Set(listRuns(db,run.session).flatMap(r=>r.steps.filter(t=>active(r,t)).map(t=>t.worker_type)));
   const workerType=['one','two','three'].map(slot=>`native-agent-orchestrator:orch-${s.model}-${s.reasoning_effort}-${slot}`).find(type=>!occupied.has(type));
   need(workerType,'No free Claude worker profile slot');
   return {model:s.model,subagent_type:workerType,description:'Planned step '+s.id,prompt:input.message};
@@ -123,27 +134,29 @@ function parseTask(input) {
   need(match,'Missing plan marker; create a plan and use cli.cjs prepare');
   return {runId:match[1],stepId:match[2]};
 }
-function reserve(db,input,session,callId,runtime='codex') {
+function reserve(db,input,session,callId,runtime='codex',contract='legacy') {
   text(callId,'tool call_id');
   const {runId,stepId}=parseTask(input);
   return tx(db,()=>{
     const run=getRun(db,runId),s=stepFor(run,stepId);
     need((run.runtime||'codex')===runtime,'Dispatch runtime differs from plan');
+    if(runtime==='codex')need((run.codex_contract||'legacy')===contract,'Dispatch Codex contract differs from plan');
     if(runtime==='claude'){
       const expected=prepare(db,runId,stepId);
       need(Object.keys(input).every(k=>Object.hasOwn(expected,k))&&Object.keys(expected).every(k=>input[k]===expected[k]),'Claude assignment/model/profile differs from prepared arguments');
     }else{
-      modelPair(input?.model,input?.reasoning_effort);
-      need(input.fork_context!==true,'Worker requires fresh context');
-      need(input.model===s.model&&input.reasoning_effort===s.reasoning_effort,'Spawn model/effort differs from plan');
-      need(input.message===prepare(db,runId,stepId).message&&!input.items,'Spawn assignment differs from prepared arguments');
       const expected=prepare(db,runId,stepId);
+      modelPair(input?.model,input?.reasoning_effort);
+      need(collaboration(run)?input.fork_turns==='none':input.fork_context!==true,'Worker requires fresh context');
+      need(input.model===s.model&&input.reasoning_effort===s.reasoning_effort,'Spawn model/effort differs from plan');
+      need(input.message===expected.message&&!input.items,'Spawn assignment differs from prepared arguments');
       need(Object.keys(input).every(k=>Object.hasOwn(expected,k))&&Object.keys(expected).every(k=>input[k]===expected[k]),'Codex dispatch arguments differ from prepared arguments');
     }
     need(run.session===session,'Session is not the plan owner');
     need(!listRuns(db,session).some(r=>r.events.some(v=>v.type==='reserved'&&v.call_id===callId)),'Tool call_id has already been used');
     ready(db,run,s);need(s.attempts<policy.max_attempts,'Attempt limit reached');
     s.status='dispatching';s.closed=false;s.attempts++;s.call_id=callId;s.started_at=now();
+    s.execution_complete=false;s.completion_observed=null;
     if(runtime==='claude'){s.worker_type=input.subagent_type;s.stop_observed=null;}
     return save(db,run,{type:'reserved',step:stepId,model:s.model,reasoning_effort:s.reasoning_effort,call_id:callId});
   });
@@ -164,6 +177,20 @@ function report(db,id,step,result) {
   return tx(db,()=>{const run=getRun(db,id),s=stepFor(run,step);
     need(s.agent_id&&s.status==='running'&&!s.closed,'Report requires an open running attempt; recorded outcomes are terminal');
     need(result.agent_id===s.agent_id&&result.call_id===s.call_id,'Report agent/call does not match the active attempt');
+    if(collaboration(run)){
+      need(result.execution_complete===undefined||typeof result.execution_complete==='boolean','execution_complete must be boolean');
+      if(result.verified||result.execution_complete===true){
+        need(result.execution_complete===true,'Collaboration report requires native completion confirmation');
+        need(['completed','errored'].includes(result.completion_status),'Unknown or non-terminal native completion status');
+        need(!result.verified||result.completion_status==='completed','Errored execution cannot be verified');
+        text(result.completion_evidence,'completion evidence');
+        if(s.completion_observed)need(s.completion_observed.status===result.completion_status,'Report differs from hook-observed completion');
+      }
+      if(result.verified){
+        need(result.observed_model===s.model,'Observed Codex model differs from plan');text(result.model_evidence,'model evidence');
+        if(result.observed_effort!==undefined)need(result.observed_effort===s.reasoning_effort,'Observed Codex effort differs from plan');
+      }
+    }
     if(run.runtime==='claude'&&result.verified){
       need(result.execution_complete===true,'Claude report requires native completion confirmation');text(result.completion_evidence,'completion evidence');
       need(typeof result.observed_model==='string'&&result.observed_model.startsWith('claude-'+s.model+'-'),'Observed Claude model differs from plan');
@@ -172,11 +199,13 @@ function report(db,id,step,result) {
     }
     s.result=structuredClone(result);s.status=result.verified?'completed':'failed';
     if(run.runtime==='claude'&&result.execution_complete===true){text(result.completion_evidence,'completion evidence');s.closed=true;}
+    if(collaboration(run)&&result.execution_complete===true)s.execution_complete=true;
     return save(db,run,{type:'report',step,agent_id:s.agent_id,result:s.result});});
 }
 function markClosed(db,agentId) {
   return tx(db,()=>{const run=listRuns(db).find(r=>r.steps.some(s=>s.agent_id===agentId));
     need(run,'Unknown agent');const s=run.steps.find(s=>s.agent_id===agentId);
+    need(!collaboration(run),'Collaboration completion is not agent shutdown; use native completion report');
     s.closed=true;if(s.status==='running')s.status='failed';
     return save(db,run,{type:'closed',step:s.id,agent_id:agentId});});
 }
@@ -184,8 +213,9 @@ function fail(db,id,step,reason,callId) {
   text(reason,'failure reason');text(callId,'tool call_id');
   return tx(db,()=>{const run=getRun(db,id),s=stepFor(run,step);
     need(s.call_id===callId,'Failure call_id does not match active attempt');
-    need(['dispatching','running'].includes(s.status),'No active attempt to fail');
+    need(['dispatching','running'].includes(s.status)||(collaboration(run)&&s.status==='failed'&&!s.execution_complete&&s.completion_observed),'No active attempt to fail');
     s.status='failed';if(!s.agent_id)s.closed=true;
+    if(collaboration(run)&&s.completion_observed)s.execution_complete=true;
     return save(db,run,{type:'failed',step,reason});});
 }
 function retry(db,id,step,revision) {
@@ -193,10 +223,10 @@ function retry(db,id,step,revision) {
   text(revision.reason,'replan reason');
   return tx(db,()=>{const run=getRun(db,id),s=stepFor(run,step);
     modelPair(revision.model,revision.reasoning_effort,run.runtime||'codex');
-    need(s.status==='failed'&&s.closed,'Failed agent must be closed before retry');
+    need(s.status==='failed'&&released(run,s),'Failed agent execution must be closed or natively complete before retry');
     need(s.attempts<policy.max_attempts,'Attempt limit reached');
     s.model=revision.model;s.reasoning_effort=revision.reasoning_effort;s.reason=revision.reason;
-    s.status='pending';s.agent_id=null;s.result=null;
+    s.status='pending';s.agent_id=null;s.result=null;s.execution_complete=false;s.completion_observed=null;
     return save(db,run,{...revision,type:'retry-planned',step});});
 }
 function revise(db,id,step,revision) {
@@ -218,4 +248,15 @@ function observeClaudeStop(db,session,agentId,details) {
     return save(db,run,{type:'stop-observed',step:s.id,agent_id:agentId,call_id:s.call_id});
   });
 }
-module.exports={openDb,createRun,getRun,listRuns,prepare,parseTask,reserve,bind,report,markClosed,fail,retry,revise,observeClaudeStop};
+function observeCodexCompletion(db,session,agentId,status) {
+  need(['completed','errored'].includes(status),'Unknown or non-terminal native completion status');
+  return tx(db,()=>{const run=listRuns(db,session).find(r=>collaboration(r)&&r.steps.some(s=>s.agent_id===agentId));
+    if(!run)return null;const s=run.steps.find(s=>s.agent_id===agentId);
+    if(released(run,s)||!['running','failed'].includes(s.status))return run;
+    if(s.completion_observed?.status===status)return run;
+    need(!s.completion_observed,'Conflicting native completion status');
+    s.completion_observed={agent_id:agentId,call_id:s.call_id,status};
+    return save(db,run,{type:'completion-observed',step:s.id,...s.completion_observed});
+  });
+}
+module.exports={openDb,createRun,getRun,listRuns,prepare,parseTask,reserve,bind,report,markClosed,fail,retry,revise,observeClaudeStop,observeCodexCompletion};
