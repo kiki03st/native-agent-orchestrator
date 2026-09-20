@@ -1,6 +1,6 @@
 {
   "name": "native-agent-orchestrator",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Context-aware native agents with explicit per-step models and verified results.",
   "author": {
     "name": "kiki03st"
