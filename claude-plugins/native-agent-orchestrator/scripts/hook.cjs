@@ -14,8 +14,8 @@ function response(value){
 }
 function handle(event){
   const type=event.hook_event_name;
-  if(type==='UserPromptSubmit'||type==='SubagentStart'){
-    const isWorker=type==='SubagentStart'||/^ORCH_TASK [a-f0-9-]{36} /.test(event.prompt||'');
+  if(type==='UserPromptSubmit'){
+    const isWorker=/^ORCH_TASK [a-f0-9-]{36} /.test(event.prompt||'');
     const context=isWorker?worker:fs.readFileSync(path.join(__dirname,'coordinator.md'),'utf8')+
       '\nOwner session ID: '+JSON.stringify(event.session_id)+'. CLI path: '+JSON.stringify(path.join(__dirname,'cli.cjs'))+'.';
     return {hookSpecificOutput:{hookEventName:type,additionalContext:context}};

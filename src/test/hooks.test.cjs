@@ -80,3 +80,10 @@ test('Codex PostToolUse stays silent for an unplanned spawn',t=>{
   assert.deepEqual(hook({hook_event_name:'PostToolUse',tool_name:'spawn_agent',tool_use_id:'free',
     tool_input:{message:'unplanned'},tool_response:{agent_id:'native-free'}}),{});
 });
+test('Codex SubagentStart no longer injects worker text unconditionally',t=>{
+  const {hook}=fixture(t);
+  assert.deepEqual(hook({hook_event_name:'SubagentStart',agent_id:'any'}),{});
+  const prompt=hook({hook_event_name:'UserPromptSubmit',prompt:'상태 알려줘'});
+  assert.match(prompt.hookSpecificOutput.additionalContext,/simple questions|status/i);
+  assert.match(prompt.hookSpecificOutput.additionalContext,/cli[.]cjs/);
+});
