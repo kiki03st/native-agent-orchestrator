@@ -25,7 +25,9 @@ function handle(event){
   if(type==='PreToolUse'&&!spawn)return {};
   const e=require('./engine.cjs');let db;
   try{
-    const input=object(event.tool_input);db=e.openDb();
+    const input=object(event.tool_input);
+    if(spawn&&!e.hasTask(input))return {};
+    db=e.openDb();
     if(type==='PreToolUse'){
       e.reserve(db,input,event.session_id,event.tool_use_id);return {};
     }

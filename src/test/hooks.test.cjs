@@ -27,11 +27,15 @@ test('prompt policy preserves Korean and bypasses worker prompts',t=>{
   assert.match(worker.hookSpecificOutput.additionalContext,/worker/i);
   assert.doesNotMatch(worker.hookSpecificOutput.additionalContext,/create SESSION/);
 });
-test('unrelated tool is inert; missing model denies without starting work',t=>{
-  const {hook,run,db}=fixture(t);
+test('unrelated tool is inert',t=>{
+  const {hook}=fixture(t);
   assert.deepEqual(hook({hook_event_name:'PreToolUse',tool_name:'exec_command',tool_input:{}}),{});
-  const deny=hook({hook_event_name:'PreToolUse',tool_name:'spawn_agent',tool_input:{message:'unplanned'}});
-  assert.equal(deny.hookSpecificOutput.permissionDecision,'deny');
+});
+test('an unplanned spawn passes through without touching the plan',t=>{
+  const {hook,run,db}=fixture(t);
+  assert.deepEqual(hook({hook_event_name:'PreToolUse',tool_name:'spawn_agent',tool_input:{message:'unplanned'}}),{});
+  assert.deepEqual(hook({hook_event_name:'PreToolUse',tool_name:'Agent',tool_use_id:'x',
+    tool_input:JSON.stringify({message:'still unplanned'})}),{});
   assert.equal(e.getRun(db,run.id).steps[0].attempts,0);
 });
 test('spawn pre/post and close record lifecycle while preserving permission defaults',t=>{
