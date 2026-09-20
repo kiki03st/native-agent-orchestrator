@@ -108,3 +108,9 @@ test('Claude lets an unplanned dispatch through but still blocks recursion and p
   assert.equal(hook({hook_event_name:'PreToolUse',tool_name:'Agent',tool_use_id:'call',tool_input:input})
     .hookSpecificOutput.permissionDecision,'deny');
 });
+test('Claude PostToolUse stays silent for an unplanned dispatch',t=>{
+  const {hook}=setup(t);
+  assert.deepEqual(hook({hook_event_name:'PostToolUse',tool_name:'Agent',tool_use_id:'free',
+    tool_input:{subagent_type:'general-purpose',prompt:'unplanned'},
+    tool_response:{content:[{type:'text',text:'agentId: someagent'}]}}),{});
+});

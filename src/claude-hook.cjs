@@ -24,6 +24,7 @@ function handle(event){
       db=e.openDb();e.observeClaudeStop(db,event.session_id,event.agent_id,{effort:event.effort?.level,transcript_path:event.agent_transcript_path});
       // Another hook can veto this stop. Only the parent's verified completion closes it.
     }else if(type==='PostToolUse'){
+      if(!e.hasTask(event.tool_input))return {};
       const {runId,stepId}=e.parseTask(event.tool_input),id=a.agentId(event.tool_response);
       if(!id)throw new Error('Unrecognized Agent response; reconcile the reservation with native completion');
       db=e.openDb();const run=e.getRun(db,runId);

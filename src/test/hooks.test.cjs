@@ -75,3 +75,8 @@ test('concurrent hook processes reserve one step exactly once',async t=>{
   assert.equal(results.filter(r=>r.hookSpecificOutput?.permissionDecision==='deny').length,1);
   assert.equal(e.getRun(db,run.id).steps[0].attempts,1);
 });
+test('Codex PostToolUse stays silent for an unplanned spawn',t=>{
+  const {hook}=fixture(t);
+  assert.deepEqual(hook({hook_event_name:'PostToolUse',tool_name:'spawn_agent',tool_use_id:'free',
+    tool_input:{message:'unplanned'},tool_response:{agent_id:'native-free'}}),{});
+});
