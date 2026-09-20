@@ -25,6 +25,11 @@ function handle(event){
   if(type==='PreToolUse'&&!spawn)return {};
   const e=require('./engine.cjs');let db;
   try{
+    // Mirrors claude-hook.cjs: a worker must not delegate further. Placed ahead of the
+    // marker gate so it covers unmanaged dispatches too. UNVERIFIED: whether Codex
+    // supplies agent_id on PreToolUse has not been tested against a live host. If it
+    // does not, this guard never fires and denies nothing.
+    if(type==='PreToolUse'&&event.agent_id)throw new Error('Worker cannot recursively delegate');
     const input=object(event.tool_input);
     if(spawn&&!e.hasTask(input))return {};
     db=e.openDb();

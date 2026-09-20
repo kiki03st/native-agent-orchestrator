@@ -87,3 +87,10 @@ test('Codex SubagentStart no longer injects worker text unconditionally',t=>{
   assert.match(prompt.hookSpecificOutput.additionalContext,/simple questions|status/i);
   assert.match(prompt.hookSpecificOutput.additionalContext,/cli[.]cjs/);
 });
+test('a Codex worker cannot recursively delegate, marker or not',t=>{
+  const {hook}=fixture(t);
+  assert.equal(hook({hook_event_name:'PreToolUse',tool_name:'spawn_agent',agent_id:'child',
+    tool_input:{message:'unplanned'}}).hookSpecificOutput.permissionDecision,'deny');
+  assert.deepEqual(hook({hook_event_name:'PreToolUse',tool_name:'spawn_agent',
+    tool_input:{message:'unplanned'}}),{});
+});

@@ -18,3 +18,5 @@ Claude의 별칭은 계정·공급자·설정에 따라 실제 모델 버전이 
 단순 질문·설명·진행 확인은 위 표와 관계없이 현재 세션에서 처리합니다. 복잡한 작업도 항상 최고가 모델을 쓰는 규칙은 아닙니다. 변경 시 `src/policy.json`, 두 coordinator 문서와 이 문서를 함께 검토하고 `npm run build`로 배포본을 갱신합니다.
 
 공식 참고: [Codex 하위 에이전트](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Claude 모델 설정](https://code.claude.com/docs/en/model-config), [Claude 하위 에이전트](https://code.claude.com/docs/en/subagents), [Claude effort](https://platform.claude.com/docs/en/build-with-claude/effort).
+
+0.2.0 에서 이 문서의 절차에 따라 `src/policy.json` 과 두 coordinator 문서를 함께 검토했습니다. `policy.json` 은 바꿀 내용이 없었고, coordinator 두 문서는 마커 없는 디스패치를 차단하지 않는다는 문장으로 갱신했습니다.

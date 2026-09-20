@@ -35,7 +35,7 @@ codex plugin marketplace add kiki03st/native-agent-orchestrator
 codex plugin add native-agent-orchestrator@personal
 ```
 
-저장소의 Codex marketplace 이름은 `personal`입니다. 이미 같은 이름의 다른 marketplace를 등록했다면 충돌을 먼저 해결해야 합니다. 설치 후 새 세션의 `/hooks`에서 `Native Agent Orchestrator:`로 시작하는 UserPromptSubmit, SubagentStart, PreToolUse, PostToolUse 항목 4개를 검토하고 신뢰 설정을 켭니다. 설치만으로 훅이 자동 신뢰되지는 않습니다. [Codex 공식 훅 문서](https://learn.chatgpt.com/docs/hooks)
+저장소의 Codex marketplace 이름은 `personal`입니다. 이미 같은 이름의 다른 marketplace를 등록했다면 충돌을 먼저 해결해야 합니다. 설치 후 새 세션의 `/hooks`에서 `Native Agent Orchestrator:`로 시작하는 UserPromptSubmit, SubagentStart, PreToolUse, PostToolUse 항목 4개를 검토하고 신뢰 설정을 켭니다. 0.2.0부터 SubagentStart 그룹은 등록만 되어 있고 실제로는 아무 동작도 하지 않습니다. 설치만으로 훅이 자동 신뢰되지는 않습니다. [Codex 공식 훅 문서](https://learn.chatgpt.com/docs/hooks)
 
 ### Claude Code
 
@@ -66,7 +66,7 @@ claude plugin install native-agent-orchestrator@native-agent-orchestrator-market
 
 플러그인 캐시 안에는 실행 기록을 쓰지 않습니다. 제거·업데이트 시 기록을 자동 삭제하지 않습니다. 플러그인 자체는 텔레메트리나 외부 API 요청을 보내지 않지만, 작업 프롬프트와 결과는 사용하는 호스트의 모델 처리 정책을 따릅니다. 계획 파일과 DB에 비밀정보를 넣지 마세요.
 
-훅과 선언된 파일 범위는 작업 규칙·충돌 검사이지 보안 샌드박스가 아닙니다. 이 플러그인이 활성화된 세션에서는 관리되지 않는 Agent/spawn_agent 호출도 거부하므로, 별도 위임 체계를 쓰는 다른 플러그인과 충돌할 수 있습니다. 모델별 성능 순위나 속도 개선을 보장하지 않습니다. [모델 선택 기준](docs/model-routing.md)
+훅과 선언된 파일 범위는 작업 규칙·충돌 검사이지 보안 샌드박스가 아닙니다. ORCH_TASK 마커가 없는 Agent/spawn_agent 호출은 원장이 관리하지 않으며 차단하지도 않습니다. 따라서 별도 위임 체계를 쓰는 다른 플러그인과 공존하지만, 그런 호출의 결과는 검증된 오케스트레이션 단계가 아닙니다. 작업자가 다시 작업자를 만드는 재귀 위임은 마커 유무와 관계없이 거부합니다. 모델별 성능 순위나 속도 개선을 보장하지 않습니다. [모델 선택 기준](docs/model-routing.md)
 
 ## 개발
 
