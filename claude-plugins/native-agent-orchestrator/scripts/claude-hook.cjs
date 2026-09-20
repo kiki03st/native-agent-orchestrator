@@ -14,6 +14,7 @@ function handle(event){
   try{
     if(type==='PreToolUse'){
       if(event.agent_id)throw new Error('Worker cannot recursively delegate');
+      if(!e.hasTask(event.tool_input))return {};
       a.checkProfile(event.tool_input,event.cwd);db=e.openDb();
       e.reserve(db,event.tool_input,event.session_id,event.tool_use_id,'claude');
     }else if(type==='SubagentStart'){

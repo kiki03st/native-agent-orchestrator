@@ -94,3 +94,17 @@ test('Codex and Claude reservations share the same file conflict checks',t=>{
   const claude=e.createRun(db,{runtime:'claude',objective:'Claude read',cwd:dir,steps:[step('read',{read_paths:['shared/file.txt']})]},'claude-parent');
   assert.throws(()=>e.prepare(db,claude.id,'read'),/conflict/i);
 });
+test('Claude lets an unplanned dispatch through but still blocks recursion and profile tampering',t=>{
+  const {db,run,hook,profileDir}=setup(t);
+  assert.deepEqual(hook({hook_event_name:'PreToolUse',tool_name:'Agent',tool_use_id:'free',
+    tool_input:{subagent_type:'general-purpose',prompt:'find the config loader'}}),{});
+  assert.deepEqual(hook({hook_event_name:'PreToolUse',tool_name:'Task',tool_use_id:'free2',
+    tool_input:{subagent_type:'Explore',description:'d',prompt:'unplanned'}}),{});
+  assert.equal(e.getRun(db,run.id).steps[0].attempts,0);
+  assert.equal(hook({hook_event_name:'PreToolUse',agent_id:'child',tool_name:'Agent',tool_use_id:'nested',
+    tool_input:{subagent_type:'general-purpose',prompt:'unplanned'}}).hookSpecificOutput.permissionDecision,'deny');
+  const input=e.prepare(db,run.id,'first');
+  fs.appendFileSync(path.join(profileDir,input.subagent_type.split(':')[1]+'.md'),'Changed profile');
+  assert.equal(hook({hook_event_name:'PreToolUse',tool_name:'Agent',tool_use_id:'call',tool_input:input})
+    .hookSpecificOutput.permissionDecision,'deny');
+});
