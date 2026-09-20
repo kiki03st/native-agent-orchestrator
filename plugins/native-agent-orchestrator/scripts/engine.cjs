@@ -116,10 +116,15 @@ function prepare(db,id,step) {
   need(workerType,'No free Claude worker profile slot');
   return {model:s.model,subagent_type:workerType,description:'Planned step '+s.id,prompt:input.message};
 }
-function parseTask(input) {
+const TASK_MARKER=/^ORCH_TASK ([a-f0-9-]{36}) ([a-zA-Z0-9_-]{1,64})(?:\r?\n|$)/;
+function taskMessage(input) {
   let message=input?.message||input?.prompt;
   if(!message && Array.isArray(input?.items))message=input.items.filter(x=>x.type==='text').map(x=>x.text||'').join('\n');
-  const match=/^ORCH_TASK ([a-f0-9-]{36}) ([a-zA-Z0-9_-]{1,64})(?:\r?\n|$)/.exec(message||'');
+  return message||'';
+}
+function hasTask(input) { return TASK_MARKER.test(taskMessage(input)); }
+function parseTask(input) {
+  const match=TASK_MARKER.exec(taskMessage(input));
   need(match,'Missing plan marker; create a plan and use cli.cjs prepare');
   return {runId:match[1],stepId:match[2]};
 }
@@ -218,4 +223,4 @@ function observeClaudeStop(db,session,agentId,details) {
     return save(db,run,{type:'stop-observed',step:s.id,agent_id:agentId,call_id:s.call_id});
   });
 }
-module.exports={openDb,createRun,getRun,listRuns,prepare,parseTask,reserve,bind,report,markClosed,fail,retry,revise,observeClaudeStop};
+module.exports={openDb,createRun,getRun,listRuns,prepare,hasTask,parseTask,reserve,bind,report,markClosed,fail,retry,revise,observeClaudeStop};

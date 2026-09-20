@@ -136,3 +136,16 @@ test('parallel limit also applies across runs',t=>{
   const run=e.createRun(db,{objective:'fourth',cwd:dir,steps:[step('a')]},'p4');
   assert.throws(()=>e.prepare(db,run.id,'a'),/global|limit/i);
 });
+test('hasTask recognizes the marker in every input shape without throwing',()=>{
+  const e=require(enginePath);
+  const id='00000000-0000-0000-0000-000000000000';
+  assert.equal(e.hasTask({message:'ORCH_TASK '+id+' step\nbody'}),true);
+  assert.equal(e.hasTask({prompt:'ORCH_TASK '+id+' step'}),true);
+  assert.equal(e.hasTask({items:[{type:'text',text:'ORCH_TASK '+id+' step'}]}),true);
+  assert.equal(e.hasTask({message:'unplanned'}),false);
+  assert.equal(e.hasTask({message:'ORCH_TASK short id'}),false);
+  assert.equal(e.hasTask({}),false);
+  assert.equal(e.hasTask(undefined),false);
+  assert.throws(()=>e.parseTask({message:'unplanned'}),/Missing plan marker/);
+  assert.deepEqual(e.parseTask({message:'ORCH_TASK '+id+' step'}),{runId:id,stepId:'step'});
+});
