@@ -114,3 +114,11 @@ test('Claude PostToolUse stays silent for an unplanned dispatch',t=>{
     tool_input:{subagent_type:'general-purpose',prompt:'unplanned'},
     tool_response:{content:[{type:'text',text:'agentId: someagent'}]}}),{});
 });
+test('Claude PostToolUseFailure reports only for planned dispatches',t=>{
+  const {db,run,hook}=setup(t);
+  assert.deepEqual(hook({hook_event_name:'PostToolUseFailure',tool_name:'Agent',tool_use_id:'free',
+    tool_input:{subagent_type:'general-purpose',prompt:'unplanned'}}),{});
+  const input=e.prepare(db,run.id,'first');
+  assert.match(hook({hook_event_name:'PostToolUseFailure',tool_name:'Agent',tool_use_id:'call',
+    tool_input:input}).systemMessage,/Agent tool failed/);
+});

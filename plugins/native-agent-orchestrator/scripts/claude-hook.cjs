@@ -31,6 +31,7 @@ function handle(event){
       if(run.runtime!=='claude'||run.session!==event.session_id)throw new Error('Wrong runtime/session for spawn response');
       e.bind(db,runId,stepId,id,event.tool_use_id);
     }else if(type==='PostToolUseFailure'){
+      if(!e.hasTask(event.tool_input))return {};
       throw new Error('Agent tool failed; confirm whether any worker started before fail/closed reconciliation');
     }
     return {};
