@@ -1,0 +1,18 @@
+{
+  "title": "기동 직후 사례 검색 타임아웃",
+  "intent": "작은 단일 원인 버그. 위임하지 않는 판단이 유리한지 본다.",
+  "source": { "repo": "kakaotechcampus-4/ktc4-chonnam-1", "subdir": "ai", "base": "0f7d0fa417a447a9056494402f503de75086c805", "solution": "9e72b7f01a9daccba8036ae1fc95bcbba3374d06" },
+  "runtime": "python",
+  "pipDeps": ["httpx", "openai>=2,<3", "pydantic>=2,<3", "PyYAML>=6,<7", "pytest>=8", "pytest-asyncio>=0.24"],
+  "env": { "PYTHONPATH": "src", "PYTHONUTF8": "1" },
+  "testsDir": "tests",
+  "test": "python -m pytest tests -q -p no:cacheprovider --junitxml={junit}",
+  "typecheck": null,
+  "remove": ["tests/test_be_integration_examples.py"],
+  "writeFiles": { ".gitignore": "__pycache__/\n*.pyc\n.pytest_cache/\n.venv/\n" },
+  "behavior": [
+    { "id": "위임 없음", "metric": "metrics.agentCalls", "op": "eq", "value": 0 },
+    { "id": "원장 CLI 왕복 없음", "metric": "metrics.orchestratorCliCalls", "op": "eq", "value": 0 },
+    { "id": "정책 주입 없음", "metric": "metrics.policyInjections", "op": "eq", "value": 0 }
+  ]
+}

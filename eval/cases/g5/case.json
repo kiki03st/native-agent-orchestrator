@@ -1,0 +1,26 @@
+{
+  "title": "심어 둔 결함 찾기",
+  "intent": "테스트를 통과하는 코드에 규칙 위반 7개를 심는다. 검토 과정이 실제로 결함을 찾는지 결함별로 본다.",
+  "source": { "repo": "kiki03st/salesman", "subdir": "", "base": "f5b11bcf893ed6ab1294451f3882a54db131a37d", "solution": "f5b11bcf893ed6ab1294451f3882a54db131a37d" },
+  "runtime": "node",
+  "testsDir": "tests",
+  "remove": ["docs", "assets", "README.md"],
+  "extraHiddenTests": ["review-hidden.test.ts"],
+  "seeds": [
+    { "id": "D1", "file": "src/pricing/calc.ts", "find": "if (p.ends && p.ends < today) return false;", "replace": "if (p.ends && p.ends <= today) return false;" },
+    { "id": "D2", "file": "src/pricing/calc.ts", "find": "Math.floor((listed * p.value) / 100)", "replace": "Math.round((listed * p.value) / 100)" },
+    { "id": "D3", "file": "src/pricing/calc.ts", "find": "listed < p.minAmount", "replace": "listed <= p.minAmount" },
+    { "id": "D4", "file": "src/pricing/calc.ts", "find": "if (p.mall !== hit.mall || !profile.enabled.has(p.payCode)", "replace": "if (!profile.enabled.has(p.payCode)" },
+    { "id": "D5", "file": "src/llm/titles.ts", "find": "      parsed = null;", "replace": "      throw new Error('title parse failed');" },
+    { "id": "D6", "file": "src/llm/titles.ts", "find": "const r = (arr.find((x: RawItem) => x && x.i === i) ?? arr[i]) as RawItem | undefined;", "replace": "const r = arr[i] as RawItem | undefined;" },
+    { "id": "D7", "file": "src/llm/promos.ts", "find": "    del.run(mall, url);", "replace": "" },
+    { "id": "D7", "file": "src/llm/promos.ts", "find": "    let rules: PromoRule[] | null = null;", "replace": "    del.run(mall, url);\n    let rules: PromoRule[] | null = null;" }
+  ],
+  "test": "node --import tsx --test --test-reporter=junit --test-reporter-destination={junit} \"tests/**/*.test.ts\"",
+  "typecheck": "npx tsc --noEmit",
+  "groups": { "calc": "D[1-4] ", "titles": "D[56] ", "promos": "D7 " },
+  "behavior": [
+    { "id": "결함 7개 모두 수정", "metric": "hiddenFailed", "op": "eq", "value": 0 },
+    { "id": "기존 동작 유지", "metric": "regressionFailed", "op": "eq", "value": 0 }
+  ]
+}

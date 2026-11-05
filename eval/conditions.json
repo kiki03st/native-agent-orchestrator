@@ -1,0 +1,6 @@
+{
+  "inline": { "description": "서브에이전트 없이 메인 세션이 직접 수행", "plugins": [], "disallowedTools": ["Agent", "Task"], "prefix": "" },
+  "sdd": { "description": "superpowers 7.0.0 subagent-driven-development (비교 기준)", "plugins": ["{superpowers}"], "disallowedTools": [], "prefix": "Use the superpowers:subagent-driven-development skill to execute the plan.\n\n" },
+  "nao-current": { "description": "native-agent-orchestrator 0.2.0 (485120e 고정)", "plugins": ["{naoCurrent}"], "disallowedTools": [], "prefix": "" },
+  "next": { "description": "개선안 또는 새 스킬. --plugin-dir로 지정", "plugins": ["{pluginDir}"], "disallowedTools": [], "prefix": "" }
+}

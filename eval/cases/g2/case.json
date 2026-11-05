@@ -1,0 +1,18 @@
+{
+  "title": "쇼핑몰 파서 4개",
+  "intent": "서로 독립적인 반복 구현. 라우팅과 병렬의 실제 이득, 공유 파일 충돌을 본다.",
+  "source": { "repo": "kiki03st/salesman", "subdir": "", "base": "319482d5f7cdce1f9d210a7f260a8aca65bfb338", "solution": "51b1952497fb95d14b3ab69cdfb14c96d988a374" },
+  "runtime": "node",
+  "testsDir": "tests",
+  "splitTest": "malls-search-2.test.ts",
+  "inputsFromSolution": ["tests/fixtures"],
+  "remove": ["docs", "assets", "README.md"],
+  "test": "node --import tsx --test --test-reporter=junit --test-reporter-destination={junit} \"tests/**/*.test.ts\"",
+  "typecheck": "npx tsc --noEmit",
+  "groups": { "gmarket": "gmarket\\.normalize", "st11": "st11\\.normalize", "oliveyoung": "oliveyoung\\.normalize", "naver": "naver\\.normalize" },
+  "behavior": [
+    { "id": "저가 모델 활용", "metric": "metrics.cheapSubagentTurnShare", "op": "gte", "value": 0.5 },
+    { "id": "독립 작업 병렬", "metric": "metrics.parallelShare", "op": "gte", "value": 0.3 },
+    { "id": "네 몰 모두 동작(공유 파일 충돌 없음)", "metric": "hiddenFailed", "op": "eq", "value": 0 }
+  ]
+}

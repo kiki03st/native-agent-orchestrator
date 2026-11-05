@@ -1,0 +1,10 @@
+{
+  "_note": "결과를 보기 전에 정한 SDD 대체 기준. 실험 도중 바꾸지 말고, 바꾸면 이유를 커밋 메시지에 남긴다.",
+  "baseline": "sdd",
+  "minReps": 3,
+  "qualityTolerance": 0,
+  "maxCaseCostRatio": 1.1,
+  "maxTotalCostRatio": 0.8,
+  "behaviorCases": ["g1"],
+  "minBehaviorRate": 0.66
+}

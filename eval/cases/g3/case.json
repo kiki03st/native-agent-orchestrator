@@ -1,0 +1,18 @@
+{
+  "title": "CCI 전략 구성요소 연결",
+  "intent": "단계가 서로 의존하는 기능 구현. 타입체크와 기존 테스트로 드러나지 않는 통합 누락을 잡는지 본다.",
+  "source": { "repo": "kiki03st/auto-trading", "subdir": "", "base": "4e98a8420a8d8ea9fed59937b2635fbd06ed4318", "solution": "614df517d07859d4bd35a75f5aba86f465523a67" },
+  "runtime": "node",
+  "testsDir": "tests",
+  "remove": [".claude", "CLAUDE.md", "docs/MODEL_ROUTING.md", "docs/tasks/T28-cci-blend-strategy.md", "docs/tasks/T29-cci-config-improve.md", "docs/tasks/T30-align-highlow-backtest.md", "docs/tasks/T31-cycle-cci-highlow.md"],
+  "writeFiles": { "README.md": "# auto-trading\n\nUpbit KRW 마켓 현물 자동매매 봇. 기본은 paper 모드다.\n\n검증: `npm run check` (typecheck, lint, test)\n" },
+  "test": "npx vitest run --reporter=junit --outputFile={junit}",
+  "typecheck": "npx tsc --noEmit",
+  "groups": { "bot-cycle": "bot-cycle", "backtest": "backtest-run|data-bars", "strategy": "strategy-|research-improve" },
+  "trap": "bot-cycle",
+  "behavior": [
+    { "id": "T31 통합 누락 발견", "metric": "score.trapCaught", "op": "eq", "value": true },
+    { "id": "기존 동작 유지", "metric": "regressionFailed", "op": "eq", "value": 0 },
+    { "id": "타입체크 통과", "metric": "score.typecheck", "op": "eq", "value": true }
+  ]
+}

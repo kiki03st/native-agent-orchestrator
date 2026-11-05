@@ -1,0 +1,23 @@
+{
+  "title": "장바구니, 가격 재확인, 구매 기록",
+  "intent": "실제 MVP 계획의 큰 작업. 한 번에 파악하기 어려울 때 격리와 위임이 품질이나 비용에서 이득을 내는지 본다.",
+  "source": { "repo": "kiki03st/salesman", "subdir": "", "base": "d155ec8d8f8a60ac926135a4902f50cc6eca1eb5", "solution": "d652da6e5634f749521e84fc20e9922ce29317df" },
+  "runtime": "node",
+  "testsDir": "tests",
+  "remove": ["docs", "assets", "README.md"],
+  "testPatches": [
+    { "file": "cart-recheck.test.ts", "find": "assert.equal(rows.find((x) => x.id === b)!.current_price, null);", "replace": "const failedRow = rows.find((x) => x.id === b)!;\n  assert.equal(failedRow.current_price ?? failedRow.listed_price, 200); // the plan only requires the price to stay; current_price may start empty or as listed" }
+  ],
+  "test": "node --import tsx --test --test-reporter=junit --test-reporter-destination={junit} \"tests/**/*.test.ts\"",
+  "typecheck": "npx tsc --noEmit",
+  "groups": {
+    "cart": "groups splits|group below|setQty 0|adding the same|/cart/add|/cart/:id",
+    "recheck": "recheck",
+    "history": "cycleDays|dueSoon|normalizeTitle|reconcilePlanned|markDone|/purchase/newtab",
+    "blocked": "MallBlocked|cooldown"
+  },
+  "behavior": [
+    { "id": "기존 동작 유지", "metric": "regressionFailed", "op": "eq", "value": 0 },
+    { "id": "타입체크 통과", "metric": "score.typecheck", "op": "eq", "value": true }
+  ]
+}

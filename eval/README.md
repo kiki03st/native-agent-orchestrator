@@ -1,0 +1,53 @@
+# 골든 케이스 평가
+
+SDD(superpowers subagent-driven-development)를 대체할 스킬이 정말 더 나은지 판정하는 도구입니다.
+개선 작업과 분리해 재고, 합격 기준은 결과를 보기 전에 `gate.json`에 고정합니다.
+
+## 케이스
+
+| id | 작업 | 보려는 것 |
+|---|---|---|
+| g1 | 기동 직후 검색 타임아웃 버그 | 작은 일을 위임하지 않는 판단 |
+| g2 | 쇼핑몰 파서 4개 | 저가 모델 라우팅, 병렬의 실제 이득 |
+| g3 | CCI 전략 구성요소 연결 | 계획에 없는 통합 누락(봇 경로) 발견 |
+
+정답 코드와 원본 저장소는 커밋하지 않습니다. `case.json`의 커밋 SHA에서 빌드합니다.
+`plan.md`는 비공개 저장소에서 파생된 내용이므로, 이 저장소를 공개하기 전에 검토하세요.
+
+## 조건
+
+`inline`(서브에이전트 없음), `sdd`(비교 기준), `nao-current`(485120e 고정), `next`(`--plugin-dir`로 지정한 개선안).
+
+## 사용법
+
+```bash
+npm run eval:test                      # 도구 단위 테스트
+node eval/build.mjs                    # fixture 빌드, 기대 테스트 목록 계산
+node eval/selftest.mjs                 # 오답은 떨어지고 다른 정답은 붙는지 검증 (모델 호출 없음)
+node eval/run.mjs --smoke --condition sdd                         # haiku로 격리 확인
+node eval/run.mjs --case g1 --condition sdd --rep 1 --dry-run     # 명령만 출력
+node eval/run.mjs --case g1 --condition sdd --rep 1               # 실제 실행 (유료)
+node eval/compare.mjs                  # 표와 판정 출력, report.md 저장
+```
+
+결과는 `~/.cache/nao-eval/results/<조건>/<케이스>/r<회차>/`에 쌓입니다. 위치는 `NAO_EVAL_HOME`으로 바꿀 수 있습니다.
+
+## 채점
+
+- 정답 커밋과 시작 커밋에서 같은 테스트를 돌려 기대 목록을 계산합니다. 숨은 테스트는 정답에서만 통과하는 것, 회귀 테스트는 양쪽 모두 통과하는 것입니다.
+- 채점 때 원본 테스트를 덮어쓰므로 에이전트가 테스트를 고쳐도 점수는 바뀌지 않습니다.
+- 비용은 Claude Code가 보고한 `total_cost_usd`를 그대로 씁니다.
+
+## 판정
+
+`gate.json` 기준을 모두 만족해야 `REPLACE_CANDIDATE`입니다.
+
+- 모든 케이스에서 숨은 테스트, 회귀, 함정 통과율이 SDD 이상
+- 케이스별 비용이 SDD의 1.1배 이하, 합계 비용이 0.8배 이하
+- g1 동작 기준 통과율 66% 이상
+- 조건별 케이스당 3회 이상. 모자라면 `INCONCLUSIVE`
+
+## 주의
+
+- `run.mjs`는 `bypassPermissions`로 이 컴퓨터에서 바로 실행합니다. 환경 정리(`gh`, `aside`, 토큰 제거)는 답안 유출을 줄이기 위한 것이지 보안 경계가 아닙니다. 유출 흔적은 `leakSuspects`로 기록합니다.
+- 실행 기록은 `~/.claude/projects`에도 세션으로 남습니다.

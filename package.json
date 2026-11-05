@@ -3,11 +3,17 @@
   "version": "0.2.0",
   "private": true,
   "description": "Native per-step model orchestration plugins for Codex and Claude Code",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "build": "node scripts/build.cjs",
     "pretest": "node scripts/build.cjs",
     "test": "node --test src/test/*.test.cjs test/*.test.cjs",
-    "check:build": "node scripts/build.cjs --check"
+    "check:build": "node scripts/build.cjs --check",
+    "eval:test": "node --test eval/test/*.test.mjs",
+    "eval:build": "node eval/build.mjs",
+    "eval:selftest": "node eval/selftest.mjs",
+    "eval:compare": "node eval/compare.mjs"
   }
 }
